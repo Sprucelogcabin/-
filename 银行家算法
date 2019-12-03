@@ -1,0 +1,269 @@
+//
+//  main.c
+//  银行家算法
+//
+//  Created by 李若白 on 2019/11/27.
+//  Copyright © 2019 李若白. All rights reserved.
+//
+
+#include <stdio.h>
+//数据结构
+int Available[100]={3,3,2};//可利用资源向量，记录每一种资源的数量
+int Max[100][100]={{7,5,3},{3,2,2},{9,0,2},{2,2,2},{4,3,3}};//最大需求矩阵，针对每个进程需求的每种资源
+int Allocation[100][100]={{0,1,0},{2,0,0},{3,0,2},{2,1,1},{0,0,2}};//分配矩阵，定义了系统中的每一类资源当前已经分配给每一进程的资源数
+int Need[100][100]={{7,4,3},{1,2,2},{6,0,0},{0,1,1},{4,3,1}};//需求矩阵，用来表示每一个进程尚需的各类资源数
+int pro_num=5;//进程总数
+int res_num=3;//资源总数
+//Need[i,j] = Max[i,j] - Allocation[i,j]
+//数据结构
+
+//必要通用函数
+int meun(void){
+    int n;
+    printf("1.写入信息\n");
+    printf("2.查看信息\n");
+    printf("3.索取资源\n");
+    printf("4.退出系统\n");
+    printf("请输入操作数:");
+    scanf("%d",&n);
+    printf("\n");
+    return n;
+}
+void write_info(void){//写入信息
+    int i,j;//行与列的控制变量
+    printf("输入进程数:");
+    scanf("%d",&pro_num);
+    printf("\n");
+    printf("输入资源数:");
+    scanf("%d",&res_num);
+    printf("\n");
+    printf("输入可利用资源向量Available(%d个):\n",res_num);
+    for(i=0;i<res_num;i++){
+        scanf("%d",&Available[i]);
+    }
+    printf("\n");
+    printf("输入最大需求矩阵Max(%d行%d列):\n",pro_num,res_num);
+    for(i=0;i<pro_num;i++){
+        for(j=0;j<res_num;j++){
+            scanf("%d",&Max[i][j]);
+        }
+    }
+    printf("\n");
+    printf("输入分配矩阵矩阵Allocation(%d行%d列):\n",pro_num,res_num);
+    for(i=0;i<pro_num;i++){
+        for(j=0;j<res_num;j++){
+            scanf("%d",&Allocation[i][j]);
+        }
+    }
+    printf("\n");
+    printf("输入需求矩阵Need(%d行%d列):\n",pro_num,res_num);
+    for(i=0;i<pro_num;i++){
+        for(j=0;j<res_num;j++){
+            scanf("%d",&Need[i][j]);
+        }
+    }
+    printf("\n");
+    return;
+    
+}
+
+void print_info(void){//写入信息
+    int i,j;//行与列的控制变量
+    printf("\n");
+    printf("可利用资源向量Available(%d个):\n",res_num);
+    for(i=0;i<res_num;i++){
+        printf("%d ",Available[i]);
+    }
+    //printf("\n");
+    printf("最大需求矩阵Max(%d行%d列):\n",pro_num,res_num);
+    for(i=0;i<pro_num;i++){
+        for(j=0;j<res_num;j++){
+            printf("%d ",Max[i][j]);
+        }printf("\n");
+    }
+    //printf("\n");
+    printf("分配矩阵矩阵Allocation(%d行%d列):\n",pro_num,res_num);
+    for(i=0;i<pro_num;i++){
+        for(j=0;j<res_num;j++){
+            printf("%d ",Allocation[i][j]);
+        }printf("\n");
+    }
+    //printf("\n");
+    printf("需求矩阵Need(%d行%d列):\n",pro_num,res_num);
+    for(i=0;i<pro_num;i++){
+        for(j=0;j<res_num;j++){
+            printf("%d ",Need[i][j]);
+        }printf("\n");
+    }
+    printf("\n");
+    return;
+    
+}
+int compare_Req_and_Ned(int Request[100],int pn){//函数需要的参数为进程需求矩阵与进程号
+    int i=0,j=pn,flag=1;
+    for(;i<res_num;i++){
+        if (Request[i]<=Need[j][i]) {
+            flag=1;
+        }else{
+            return 0;
+        }
+    }
+    return flag;
+}
+int compare_Req_and_Ava(int Request[100]){//函数需要的参数为进程需求矩阵与进程号
+    int i=0,flag=1;
+    for(;i<res_num;i++){
+        if (Request[i]<=Available[i]) {
+            flag=1;
+        }else{
+            return 0;
+        }
+    }
+    return flag;
+}
+void o_o_dimension_option(int Request[100],char option){//1-1维向量矩阵加减
+    int i;
+    if(option=='-'){
+        for(i=0;i<res_num;i++){
+            Available[i] = Available[i]-Request[i];
+        }
+    }else if (option=='+'){
+        for(i=0;i<res_num;i++){
+            Available[i] = Available[i]+Request[i];
+        }
+    }else
+        printf("ERROR135:未知的操作符号。\n");
+}
+void t_o_dimension_option(int Request[100],char option,int pn,int sig){//sig为标志位，代表是和Allocation做运算还是和Need做运算，1为Allocation，2为Need
+    int i,j=pn;
+    if(sig==1){
+        if(option=='-'){
+            for(i=0;i<res_num;i++){
+                Allocation[j][i] = Allocation[j][i] - Request[i];
+            }
+        }
+        else if(option=='+'){
+            for(i=0;i<res_num;i++){
+                Allocation[j][i] = Allocation[j][i] + Request[i];
+            }
+        }else
+            printf("ERROR150:未知的操作符号。\n");
+    }else if(sig==2){
+        if(option=='-'){
+            for(i=0;i<res_num;i++){
+                Need[j][i] = Need[j][i] - Request[i];
+            }
+        }
+        else if(option=='+'){
+            for(i=0;i<res_num;i++){
+                Need[j][i] = Need[j][i] + Request[i];
+            }
+        }else
+            printf("ERROR162:未知的操作符号。\n");
+    }else
+        printf("ERROR164:未知的操作数据。\n");
+}
+//必要通用函数
+
+//寻找合适元素
+int find_suit(int Finish[100],int work[100]){
+    int i,j;
+    int flag;
+    for(i=0;i<pro_num;i++){//首先在行上搜索，画也就是进程数
+        if(Finish[i]==0){//如果找到一个为0的，那么在此基础上进行第二个条件的探索｜1｜
+            flag=1;
+            for(j=0;j<res_num;j++){//然后查看第二个条件，在单行的每一个上搜索，如果小于的话那么flag乘一，否则为0，只要有一次0，那么再往下算都是0
+                if(Need[i][j]<=work[j])
+                    flag=flag*1;
+                else
+                    flag=flag*0;
+            }
+            if(flag==1){//有合适者，直接返回，否则继续探索
+                return i;
+            }
+        }//｜1｜
+    }
+    return -1;//临时
+}
+//寻找合适元素
+
+//安全性算法
+int safe_or_not(void){//安全为1，不安全为0
+    int i,j,h;
+    int work[100],wi,Finish[100]={0};//工作向量，表示系统可提供给进程继续运行所需的各类资源数目，开始定为work=Available,wi为指针
+    //Finish表示系统是否有足够的资源分配给进程，一开始为0，当有进程分配给它时，则置为1
+    for(wi=0;wi<res_num;wi++){
+        work[wi] = Available[wi];
+    }
+    while(1){
+        i=find_suit(Finish, work);
+        if(i!=-1){
+            for(j=0;j<res_num;j++){
+                work[j]=work[j]+Allocation[i][j];
+                Finish[i]=1;
+            }
+        }else{
+            for(h=0;h<pro_num;h++){
+                if(Finish[h]==0){
+                    return 0;
+                }
+            }return 1;
+        }
+    }
+}
+
+
+
+//安全性算法
+
+
+
+//银行家算法     alter time:2019/11/27 10:47
+void banker(void){
+    printf("进程的请求资源与安全判断\n");
+    int option_pn,Request[100],i;//pn为进程号,请求向量
+    printf("请输入进程号:");
+    scanf("%d",&option_pn);//option_pn是进行操作的向量，即第几行
+    printf("请输入请求资源情况:");
+    for(i=0;i<res_num;i++){
+        scanf("%d",&Request[i]);
+    }
+    if(compare_Req_and_Ned(Request, option_pn)){
+        if(compare_Req_and_Ava(Request)){//进行试探分配，对于试探分配我决定和书中描写一样，直接改变真正的信息而非用假空间，这样以来会比较浪费空间
+            o_o_dimension_option(Request, '-');
+            t_o_dimension_option(Request, '+', option_pn, 1);
+            t_o_dimension_option(Request, '-', option_pn, 2);//进行完改动操作后就要进行安全性算法了，这里我将安全性算法封装在一个函数中，其返回值是0或1，如果为0则不安全，为1则安全，据此来进行下一步的实施
+            
+            if(safe_or_not()){
+                printf("当前的请求是合理的，操作后系统安全。\n");
+            }else{
+                o_o_dimension_option(Request, '+');
+                t_o_dimension_option(Request, '-', option_pn, 1);
+                t_o_dimension_option(Request, '+', option_pn, 2);
+                printf("当前请求不合理，操作后系统不安全，资源请求已经驳回。\n");
+            }
+        }else{
+            printf("ERROR1:系统资源暂时不够分配，进程需等待。\n");
+        }
+    }else{
+        printf("ERROR2:需要的资源数超过宣布的最大值。\n");
+    }
+}
+//银行家算法
+int main(int argc, const char * argv[]) {
+    int option;
+    while(1){
+        option = meun();
+        if(option==1){
+            write_info();
+        }
+        else if (option==2){
+            print_info();
+        }
+        else if(option==3){
+            banker();
+        }else
+            break;
+    }
+    return 0;
+}

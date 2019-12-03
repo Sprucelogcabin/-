@@ -1,0 +1,395 @@
+//
+//  main.c
+//  动态分区
+//
+//  Created by 李若白 on 2019/11/27.
+//  Copyright © 2019 李若白. All rights reserved.
+//
+
+#include <stdio.h>
+int place[1024];//1024K的空间
+int min_size=64;//逻辑分离，也就是说，地址空间是连续分布的，分区表不是，单个分区初步定为128
+//这里其实链表顺序表都无所谓了，但是鉴于读取的随机性更强些，我计划用顺序表
+int surplus=1024;
+typedef struct{
+    int region_id;//分区号
+    int region_start_ads;//起始地址
+    int region_end_ads;//结束地址
+    int region_size;//大小
+    int employ;//是否占用
+}region;
+typedef struct{
+    region table[50];//表体
+    int number;//总数
+    int blank_ads;//空白指针
+}region_table;
+typedef struct{
+    char name[5];
+    int pro_num;
+    int region_list[50];
+    int start_ads;
+    int end_ads;
+    int pro_size;
+    int region_number;
+}project;
+typedef struct{
+    project table[50];
+    int num;
+}project_table;
+
+region_table reg_tab;
+project_table pro_tab;
+
+void init_reg(void){
+    int i;
+    for(i=0;i<8;i++){
+        reg_tab.table[i].region_id=i;
+        reg_tab.table[i].region_size=128;
+        reg_tab.table[i].employ=-1;
+        reg_tab.table[i].region_start_ads=i*128;
+        reg_tab.table[i].region_end_ads=reg_tab.table[i].region_start_ads+127;
+    }
+    reg_tab.blank_ads=0;
+    reg_tab.number=8;
+}
+void print_disk(void){
+    int i;
+    for(i=0;i<1024;i++){
+        printf("%2d",place[i]);
+        if((i+1)%32==0)
+            printf("\n");
+    }
+}
+void print_reg(void){
+    int i=0,j;
+    printf("+-----+-----+-----+-----+-----+\n");
+    printf("|id   |size |start|end  |emp  |\n");
+    for(j=0;j<4;j++){
+        printf("+-----");
+    }printf("+-----+\n");
+    for(;i<reg_tab.number;i++){
+        
+        printf("|");
+        printf("%-5d|",reg_tab.table[i].region_id);
+        printf("%-5d|",reg_tab.table[i].region_size);
+        printf("%-5d|",reg_tab.table[i].region_start_ads);
+        printf("%-5d|",reg_tab.table[i].region_end_ads);
+        printf("%-5d|",reg_tab.table[i].employ);
+        printf("\n");
+        for(j=0;j<4;j++){
+            printf("+-----");
+        }printf("+-----+\n");
+    }
+}
+
+void print_project(void){
+    int i=0,j,h;
+    printf("+-----+-----+-----+-----+-----+-----+\n");
+    printf("|name |id   |start|end  |size |reg_n|reg_oc\n");
+    for(j=0;j<5;j++){
+        printf("+-----");
+    }printf("+-----+\n");
+    for(;i<pro_tab.num;i++){
+        
+        printf("|");
+        printf("%-5s|",pro_tab.table[i].name);
+        printf("%-5d|",pro_tab.table[i].pro_num);
+        printf("%-5d|",pro_tab.table[i].start_ads);
+        printf("%-5d|",pro_tab.table[i].end_ads);
+        printf("%-5d|",pro_tab.table[i].pro_size);
+        printf("%-5d|",pro_tab.table[i].region_number);
+        for(h=0;h<pro_tab.table[i].region_number;h++){
+            printf("%-3d",pro_tab.table[i].region_list[h]);
+        }
+        printf("\n");
+        for(j=0;j<5;j++){
+            printf("+-----");
+        }printf("+-----+\n");
+    }
+    
+}
+
+
+void init_pro(void){
+    pro_tab.num=0;
+}
+
+int menu(void){
+    int opt;
+    
+    while(1){
+        printf("----操作菜单------\n");
+        printf("1.显示分区表\n");
+        printf("2.显示项目表\n");
+        printf("3.打开虚拟硬盘\n");
+        printf("4.分配项目空间\n");
+        printf("5.项目删除\n");
+        printf("6.退出系统\n");
+        printf("----------------\n");
+        printf("请输入操作数:");
+        scanf("%d",&opt);
+        if(opt>=1&&opt<=6){
+            return opt;
+        }else{
+            printf("ERROR1:错误的操作码\n");
+        }
+    }
+}
+
+region find_reg_by_id(int id){
+    int i=0;
+    region Error;
+    Error.region_id=-1;
+    for(;i<reg_tab.number;i++){
+        if(id==reg_tab.table[i].region_id){
+            return reg_tab.table[i];
+        }
+    }
+    return Error;
+}//通过id号找到分区
+
+
+void pro_add(project new_pro){//项目表中加入项目表代表项目数增加一个，同时空间分配了一些
+    int i,j;
+    region use_one_time;
+    pro_tab.table[pro_tab.num]=new_pro;
+    pro_tab.num++;
+    surplus-=new_pro.pro_size;//我打算加上一个微不足道的功能，即在一块虚拟存储空间上表示出地址的占用
+    //项目的区块表里记录着分区的地址信息，有几种情况，当区块仅有一个时，项目仅仅占用一个区块，这时项目的起始结束地址就是真正的起始结束地址
+    //当区块中有多个时，那么情况发生了改变，项目的起始地址是第一个分区的起始地址，其余分区的地址需要通过分区号来获得，而最后一个分区结束的地点是项目的结束地址
+    if(new_pro.region_number==1){
+        for(i=new_pro.start_ads;i<=new_pro.end_ads;i++){
+            place[i]=new_pro.pro_num;
+        }
+    }else{
+        for(i=0;i<new_pro.region_number-1;i++){
+            use_one_time = find_reg_by_id(new_pro.region_list[i]);
+            for(j=use_one_time.region_start_ads;j<=use_one_time.region_end_ads;j++){
+                place[j]=new_pro.pro_num;
+            }
+        }//前n-1个填充，前n-1个填充都是对分区进行完全填充
+        use_one_time = find_reg_by_id(new_pro.region_list[i]);
+        for(j=use_one_time.region_start_ads;j<=new_pro.end_ads;j++){
+            place[j]=new_pro.pro_num;
+        }//最后一个填充，最后一个填充的起始地址是分区的起始地址，而最后一个记录在项目里
+        
+    }
+    
+}
+
+void reg_add(region new_reg){
+    reg_tab.table[reg_tab.number]=new_reg;
+    reg_tab.number++;
+}
+
+int find_kong(void){
+    int i;
+    for(i=0;i<reg_tab.number;i++){
+        if(reg_tab.table[i].employ==-1)
+            return i;
+    }
+    return -1;
+}
+
+
+
+//接下来是真正的分区模拟部分
+void fill_region(void){//项目进来填充分区
+    int empty_f=reg_tab.blank_ads,i;//i来标记占用空间的数量
+    int sykj,more_i,h=0;
+    region new_reg;
+    project new_pro;
+    printf("请输入新项目信息\n");
+    printf("新项目名称:");
+    scanf("%s",new_pro.name);
+    printf("新项目占用空间:");
+    scanf("%d",&new_pro.pro_size);
+    printf("新项目的特殊识别号码:");
+    scanf("%d",&new_pro.pro_num);
+    //这里为基本信息输入，然后就要进行内存分配了，在分配过程中，一些更多的信息会修改
+    
+    if(surplus>=new_pro.pro_size){
+        for(;empty_f<reg_tab.number;empty_f++){
+            if(reg_tab.table[empty_f].region_size>=new_pro.pro_size&&reg_tab.table[empty_f].employ==-1){//大于的情况，一是比较合适，剩余空间较大，这时需要创建分区表
+                new_pro.region_number=1;
+                new_pro.start_ads=reg_tab.table[empty_f].region_start_ads;//起始位置就是分区位置
+                new_pro.end_ads=new_pro.start_ads+new_pro.pro_size-1;//计算结束位置
+                for(i=0;i<new_pro.region_number;i++){
+                    new_pro.region_list[i]=reg_tab.table[empty_f].region_id;
+                }
+                if(reg_tab.table[empty_f].region_size-new_pro.pro_size<=min_size){//如果剩下的不多了，那么进行简单分区即可
+                    reg_tab.table[empty_f].employ=new_pro.pro_num;
+                    pro_add(new_pro);
+                }else{//否则将进行一个小改动
+                    reg_tab.table[empty_f].employ=new_pro.pro_num;
+                    pro_add(new_pro);
+                    new_reg.region_id=reg_tab.number;
+                    new_reg.region_end_ads=reg_tab.table[empty_f].region_end_ads;
+                    reg_tab.table[empty_f].region_end_ads=new_pro.end_ads;
+                    new_reg.region_start_ads=new_pro.end_ads+1;
+                    new_reg.region_size=reg_tab.table[empty_f].region_size-new_pro.pro_size;
+                    reg_tab.table[empty_f].region_size=new_pro.pro_size;
+                    new_reg.employ=-1;
+                    reg_add(new_reg);
+                }
+                reg_tab.blank_ads=find_kong();//更新空白空间指针
+                break;
+            }
+            //刚才的情况是初始分区大于我想要的空间，这样一来我的项目所占用的空间就是连续的，接下来是初始分区空间或者其他分区空间小于项目空格，此时j项目空间的的分布有可能是分散的了
+            //我大概应该将两者完全分开做圆子处理
+            else if(reg_tab.table[empty_f].region_size<new_pro.pro_size&&reg_tab.table[empty_f].employ==-1){//在此内部解决清楚
+                sykj=new_pro.pro_size;
+                more_i=empty_f;//开始的地方
+                new_pro.region_number=0;
+                new_pro.start_ads=reg_tab.table[more_i].region_start_ads;//先定义好起始位置
+                for(;more_i<reg_tab.number;more_i++){
+                    if(sykj>=reg_tab.table[more_i].region_size){
+                        reg_tab.table[more_i].employ=new_pro.pro_num;//占用一整个
+                        sykj-=reg_tab.table[more_i].region_size;
+                        new_pro.region_number++;
+                        new_pro.region_list[h]=reg_tab.table[more_i].region_id;h++;//记录下占用的分区，注意，在记录时用的id标记
+                    }
+                    else{//小于一整个，那么此时一定是最后一个了
+                        if((reg_tab.table[more_i].region_size-sykj)<=min_size){//若大于最小值，则仍然占用一整个分区，并且应该确定结束位置了
+                            reg_tab.table[more_i].employ=new_pro.pro_num;//占用一整个
+                            new_pro.end_ads=reg_tab.table[more_i].region_start_ads+sykj;
+                            new_pro.region_list[h]=reg_tab.table[more_i].region_id;h++;//记录下占用的分区
+                            new_pro.region_number++;
+                            pro_add(new_pro);
+                            break;
+                        }else{//否则将进行一个分区
+                            new_pro.region_number++;
+                            reg_tab.table[more_i].employ=new_pro.pro_num;//仍然先占用上
+                            new_reg.region_id=reg_tab.number;//确定id
+                            new_reg.region_end_ads=reg_tab.table[more_i].region_end_ads;
+                            reg_tab.table[more_i].region_end_ads=reg_tab.table[more_i].region_start_ads+sykj;
+                            new_reg.region_start_ads=reg_tab.table[more_i].region_end_ads+1;
+                            new_reg.region_size=reg_tab.table[more_i].region_size-sykj;
+                            reg_tab.table[more_i].region_size=sykj;
+                            new_reg.employ=-1;
+                            reg_add(new_reg);
+                            new_pro.end_ads=reg_tab.table[more_i].region_start_ads+sykj;
+                            new_pro.region_list[h]=reg_tab.table[more_i].region_id;h++;
+                            pro_add(new_pro);
+                            break;
+                        }
+                    }
+                }
+                reg_tab.blank_ads=find_kong();
+                break;
+            }
+        }
+    }else{
+        printf("ERROR2:空间不足,无法分配\n");
+    }
+    
+}
+
+
+
+
+//然后是删除与分区合并，分区不会被删除，分区只会被合并，但是合并中确实有着删除操作，两个旧分区b会被合并成一个新分区，然后旧分区会被替换掉，也就是说旧分区没了，取而代之的是新分区
+//也就是说合并操作包含一个合并操作，两个删除操作以及一个添加操作
+
+
+void cpzl(void){
+    region first,second;
+    int i,j,bc=0,z;
+    for(i=0;i<reg_tab.number;i++){
+        if(reg_tab.table[i].employ==-1&&reg_tab.table[i].region_size<128){//找到一个
+            first=reg_tab.table[i];
+            for(j=0;j<reg_tab.number;j++){
+                if((reg_tab.table[j].region_start_ads==first.region_end_ads+1)&&reg_tab.table[j].region_size<128){
+                    second =reg_tab.table[j];
+                    bc=j;
+                }
+            }//找到两个相邻的，准备合并,合并方式为修改第一个，删掉第二个
+            first.region_size = first.region_size + second.region_size;
+            first.region_end_ads = second.region_end_ads;
+            reg_tab.table[i]=first;
+            z=bc;
+            if(z==reg_tab.number-1){
+                reg_tab.number--;
+            }else{
+                for(;z<reg_tab.number-1;z++){
+                    reg_tab.table[z] = reg_tab.table[z+1];
+                }
+                reg_tab.number--;
+            }
+        }
+    }
+}
+
+
+void delete_pro(void){
+    int i,j,n;
+    project del_pro;
+    printf("请输入要进行删除的项目特殊识别号码:");//按顺序删除，并不好
+    scanf("%d",&n);
+    for(i=0;i<pro_tab.num;i++){
+        if(pro_tab.table[i].pro_num==n)
+            break;
+    }
+    //scanf("%d",&i);
+    int h=i;
+    del_pro=pro_tab.table[i];
+    //找到他之后，首先获取我们想要的东西，也就是说，首先要清空它的内存空间,在清空时，试着清空它周围的空间并合并
+    for(i=0;i<del_pro.region_number;i++){
+        //根据id找到它所有的占用区
+        for(j=0;j<reg_tab.number;j++){
+            if(reg_tab.table[j].region_id==del_pro.region_list[i]){
+                reg_tab.table[j].employ=-1;
+            }
+        }
+    }
+    if(h==pro_tab.num-1){
+        pro_tab.num--;
+    }else{
+        for(j=h;j<pro_tab.num-1;j++){
+            pro_tab.table[j]=pro_tab.table[j+1];
+        }
+        pro_tab.num--;
+    }
+    cpzl();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+int main(int argc, const char * argv[]) {
+    int option;
+    printf("********欢迎进入模拟动态分区系统!********\n");
+    init_reg();
+    init_pro();
+    int p;
+    for(p=0;p<1024;p++){
+        place[p]=-1;
+    }
+    while(1){
+        option=menu();
+        if(option==1){
+            print_reg();
+        }else if(option==6){
+            break;
+        }else if(option==4){
+            fill_region();
+        }else if(option==2){
+            print_project();
+        }else if(option==3){
+            print_disk();
+        }else if(option==5){
+            delete_pro();
+        }
+    }
+    
+    
+    return 0;
+}

@@ -1,0 +1,262 @@
+package 动态分区分配;
+import java.util.*;
+public class Main 
+{
+
+	public static void main(String[] args) 
+	{
+		Scanner in =new Scanner(System.in);
+		List <Partition> list=new ArrayList<Partition>();
+		//声明一个存储分区信息的表
+		Partition p=new Partition();
+		//定义初始对象
+		p.setName("空闲区");
+		int x;
+		System.out.println("定义内存的起始地址：");
+		x=in.nextInt();
+		p.setBegin(x);
+		System.out.println("定义内存的大小：");
+		x=in.nextInt();
+		p.setSize(x);
+		p.setStatus("未分配");
+		list.add(p);
+		int choice;
+		//循环显示菜单
+		while(true)
+		{
+			String name;
+			//作业名
+			int size;
+			//作业所占内存的大小
+			int index=-1;
+			//记录作业的下标
+			menu();
+			System.out.println("输入选择：");
+			choice=in.nextInt();
+			if (choice==1)
+			{
+				System.out.println("输入作业名：");
+				name=in.next();
+				System.out.println("作业占内存的大小：");
+				size=in.nextInt();
+				//从头开始遍历作业表，找到一个适合的内存
+				for (int i=0;i<list.size();i++)
+				{
+					//采用首次适应算法，如果找到一个
+					if (list.get(i).getSize()>=size&&list.get(i).getStatus()=="未分配")
+					{
+						index=i;
+						//记录下下标
+						break;
+						//跳出循环
+					}
+				}
+				//如果找到了
+				if (index!=-1)
+				{
+					//如果从原分区中划分出此分区之后留下的最小空间小于系统所要求的最小空间
+					//系统要求的最小空间为2
+					//直接把这个分区给当前作业
+					if (list.get(index).getSize()-size<=2)
+					{
+						list.get(index).setName(name);
+						//修改作业名
+						list.get(index).setStatus("已分配");
+						//修改当前分区的状态
+					}
+					//如果留下的最小空间够的话
+					else 
+					{
+						Partition r=new Partition();
+						//先定义一个对象表示要分配
+						r.setName(name);
+						r.setSize(size);
+						r.setBegin(list.get(index).getBegin());
+						r.setStatus("已分配");
+						
+						list.get(index).setBegin(r.getBegin()+size);
+						list.get(index).setSize(list.get(index).getSize()-size);
+						//要分配的分区大小要减少size
+						//把当前作业加入到分区表里去
+						list.add(index,r);
+					}
+					System.out.println("分配成功!");
+				}
+				//如果一个也找不到的话
+				else 
+				{
+					System.out.println("分配失败!");
+				}
+			}
+			//回收内存
+			else if (choice==2)
+			{
+				System.out.println("输入要回收作业的作业名：");
+				name=in.next();
+				//首先查看作业名是否有效，如果找到的话，记录下其下标
+				for (int i=0;i<list.size();i++)
+				{
+					if (list.get(i).getName().equals(name))
+					{
+						index=i;
+						//记录下其下标
+						break;
+						//跳出循环
+					}
+				}
+				//说明已经找到，准备回收内存
+				if (index!=-1)
+				{
+					//如果只有一个元素的话
+					if (list.size()==1)
+					{
+						list.get(index).setName("空闲区");
+						list.get(index).setStatus("未分配");
+					}
+					//如果是开头的话
+					else if (index==0)
+					{
+						//如果其后面的也是空闲的
+						if (list.get(index+1).getStatus().equals("未分配"))
+						{
+							list.get(index).setName("空闲区");
+							list.get(index).setStatus("未分配");
+							list.get(index).setSize(list.get(index).getSize()+list.get(index+1).getSize());
+							//改变分区的大小
+							
+							//把后面空闲的分区从表中移除
+							list.remove(index+1);
+						}
+						else
+						{
+							list.get(index).setName("空闲区");
+							list.get(index).setStatus("未分配");
+						}
+					}
+					//如果是结尾的话
+					//此时程序中至少有两个元素
+					else if (index==list.size()-1)
+					{
+						//如果前面的分区为未分配
+						if (list.get(index-1).getStatus().equals("未分配"))
+						{
+							list.get(index-1).setSize(list.get(index-1).getSize()+list.get(index).getSize());
+							//修改上一个分区的分区大小
+							list.get(index-1).setName("空闲区");
+							list.get(index-1).setStatus("未分配");
+							list.remove(index);
+							//移除掉当前分区
+						}
+						//如果上一个分区的状态为已分配
+						else
+						{
+							list.get(index).setName("空闲区");
+							list.get(index).setStatus("未分配");
+						}
+					}
+					//既不是开头也不是结尾，
+					else
+					{
+						//如果前后两个分区都可以合并的话
+						if (list.get(index-1).getStatus().equals("未分配")&&list.get(index+1).getStatus().equals("未分配"))
+						{
+							list.get(index-1).setSize(list.get(index-1).getSize()+list.get(index).getSize()+list.get(index+1).getSize());
+							list.get(index-1).setName("空闲区");
+							list.get(index-1).setStatus("未分配");
+							list.remove(index);
+							list.remove(index);
+						}
+						//如果前一个分区可以合并的话
+						else if (list.get(index-1).getStatus().equals("未分配"))
+						{
+							list.get(index-1).setSize(list.get(index-1).getSize()+list.get(index).getSize());
+							list.get(index-1).setName("空闲区");
+							list.get(index-1).setStatus("未分配");
+							list.remove(index);
+						}
+						//如果后一个分区可以合并的话
+						else if (list.get(index+1).getStatus().equals("未分配"))
+						{
+							list.get(index).setSize(list.get(index).getSize()+list.get(index+1).getSize());
+							list.get(index).setName("空闲区");
+							list.get(index).setStatus("未分配");
+							list.remove(index+1);
+						}
+						//如果都不能合并的话
+						else
+						{
+							list.get(index).setName("空闲区");
+							list.get(index).setStatus("未分配");
+						}
+					}
+					System.out.println("回收成功！");
+				}
+				else
+				{
+					System.out.println("抱歉，该作业名不存在！");
+				}
+			}
+			//显示内存的使用情况
+			else if (choice==3)
+			{
+				System.out.println("分区号 | 作业名 | 起始地址 | 分区大小 | 状态\n");
+				//首先输出表头
+				//循环输出每一个分区的内容
+				for (int i=0;i<list.size();i++)
+				{
+					System.out.println(i+"   "+list.get(i).getName()+"   "+list.get(i).getBegin()+"   "+list.get(i).getSize()+"   "+list.get(i).getStatus());
+					System.out.println("");
+				}
+			}
+			//选择为4，退出整个程序
+			else if (choice==4)
+			{
+				break;
+			}
+			
+	    }
+	}
+    public static void menu()
+    {
+    	System.out.println("1.分配内存");
+    	System.out.println("2.回收内存");
+    	System.out.println("3.显示内存使用情况");
+    	System.out.println("4.退出");
+    }
+}
+class Partition
+{
+	private String name;
+	//作业名
+	private int begin;
+	//作业起始地址
+	private int size;
+	//分区大小
+	private String status;
+	//状态
+	public String getName() {
+		return name;
+	}
+	public void setName(String name) {
+		this.name = name;
+	}
+	public int getBegin() {
+		return begin;
+	}
+	public void setBegin(int begin) {
+		this.begin = begin;
+	}
+	public int getSize() {
+		return size;
+	}
+	public void setSize(int size) {
+		this.size = size;
+	}
+	public String getStatus() {
+		return status;
+	}
+	public void setStatus(String status) {
+		this.status = status;
+	}
+	
+}
